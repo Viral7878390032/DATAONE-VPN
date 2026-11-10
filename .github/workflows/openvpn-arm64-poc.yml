@@ -1,0 +1,54 @@
+name: OpenVPN Android ARM64 Proof of Concept
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-arm64:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout DATAONE VPN
+        uses: actions/checkout@v4
+
+      - name: Checkout OpenVPN Rust wrapper
+        uses: actions/checkout@v4
+        with:
+          repository: networks-rs/openvpn-connect-rs
+          ref: main
+          path: openvpn-rs
+          submodules: recursive
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+          targets: aarch64-linux-android
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK and native build tools
+        run: |
+          sdkmanager "ndk;27.2.12479018"
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build clang libclang-dev lz4
+
+      - name: Configure Android NDK
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "ANDROID_PLATFORM=android-24" >> "$GITHUB_ENV"
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - name: Build OpenVPN 3 Core for Android ARM64
+        working-directory: openvpn-rs
+        run: cargo ndk -t arm64-v8a -p 24 build --release -p openvpn-connect --features vendor
+
+      - name: Confirm ARM64 library was built
+        run: |
+          test -f openvpn-rs/target/aarch64-linux-android/release/libopenvpn_connect.rlib
+          file openvpn-rs/target/aarch64-linux-android/release/libopenvpn_connect.rlib
