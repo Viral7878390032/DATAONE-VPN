@@ -125,7 +125,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun DataOneVpnHome() {
     val context = LocalContext.current
-    val controller = remember(context) { WireGuardTunnelController(context) }
+    val controller = remember { WireGuardTunnelController.getInstance(context) }
     var configReady by remember { mutableStateOf(false) }
     var configText by remember { mutableStateOf("") }
     var configMessage by remember { mutableStateOf("No WireGuard configuration imported") }
@@ -157,7 +157,7 @@ private fun DataOneVpnHome() {
                     tunnelState = current
                     if (current == Tunnel.State.UP) {
                         if (connectedAt == null) connectedAt = SystemClock.elapsedRealtime()
-                        statusMessage = "VPN is active. Traffic is routed through the tunnel."
+                        statusMessage = "DATAONE WireGuard tunnel is active."
                     } else {
                         connectedAt = null
                         statusMessage = "VPN is not connected."
