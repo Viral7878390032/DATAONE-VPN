@@ -60,6 +60,7 @@ jobs:
       - name: Configure Android NDK
         run: |
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
           echo "ANDROID_PLATFORM=android-24" >> "$GITHUB_ENV"
 
       - name: Install cargo-ndk
@@ -67,7 +68,7 @@ jobs:
 
       - name: Build OpenVPN 3 Core for Android ARM64
         working-directory: openvpn-rs
-        run: cargo ndk -t arm64-v8a -p 24 build --release -p openvpn-connect --features vendor
+        run: cargo ndk -t arm64-v8a --platform 24 build --release -p openvpn-connect --features vendor
 
       - name: Confirm ARM64 library was built
         run: |
