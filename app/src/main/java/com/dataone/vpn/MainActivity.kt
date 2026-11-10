@@ -158,7 +158,6 @@ private fun DataOneVpnHome() {
                     if (current == Tunnel.State.UP) {
                         if (connectedAt == null) connectedAt = SystemClock.elapsedRealtime()
                         statusMessage = "VPN is active. Traffic is routed through the tunnel."
-                        refreshServerLocation()
                     } else {
                         connectedAt = null
                         statusMessage = "VPN is not connected."
