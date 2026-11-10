@@ -9,4 +9,5 @@ name = "dataone_openvpn"
 crate-type = ["cdylib"]
 
 [dependencies]
+jni = "0.21.1"
 openvpn-connect = { path = "../../openvpn-rs/openvpn-connect", features = ["vendor"] }
