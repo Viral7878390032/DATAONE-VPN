@@ -32,6 +32,12 @@ class WireGuardTunnelController(context: Context) : Closeable {
         }
     }
 
+    /** Re-read the active tunnel state when the dashboard is reopened. */
+    fun refreshState(): Tunnel.State {
+        state = backend.getState(tunnel)
+        return state
+    }
+
     /** Returns the Android VPN consent intent, or null if consent is already granted. */
     fun permissionIntent() = VpnService.prepare(appContext)
 
