@@ -1,0 +1,12 @@
+[package]
+name = "dataone-openvpn-android-bridge"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "dataone_openvpn"
+crate-type = ["cdylib"]
+
+[dependencies]
+openvpn-connect = { path = "../../openvpn-rs/openvpn-connect", features = ["vendor"] }
