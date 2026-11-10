@@ -46,7 +46,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -149,10 +148,13 @@ private fun DataOneVpnHome() {
         }.onFailure {
             configMessage = "Saved configuration could not be opened. Please import it again."
         }
-    }
 
-    DisposableEffect(controller) {
-        onDispose { controller.close() }
+        runCatching { controller.refreshState() }.onSuccess { current ->
+            tunnelState = current
+            if (current == Tunnel.State.UP) {
+                statusMessage = "VPN is still running in the background."
+            }
+        }
     }
 
     LaunchedEffect(tunnelState, connectedAt) {
