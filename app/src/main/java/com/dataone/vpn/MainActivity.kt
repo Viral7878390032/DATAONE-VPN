@@ -149,11 +149,23 @@ private fun DataOneVpnHome() {
             configMessage = "Saved configuration could not be opened. Please import it again."
         }
 
-        runCatching { controller.refreshState() }.onSuccess { current ->
-            tunnelState = current
-            if (current == Tunnel.State.UP) {
-                statusMessage = "VPN is still running in the background."
+        // Recheck Android's real tunnel state while the dashboard is open.
+        // The system VPN key icon may remain visible when this Activity is closed.
+        while (true) {
+            runCatching { controller.refreshState() }.onSuccess { current ->
+                if (current != tunnelState) {
+                    tunnelState = current
+                    if (current == Tunnel.State.UP) {
+                        if (connectedAt == null) connectedAt = SystemClock.elapsedRealtime()
+                        statusMessage = "VPN is active. Traffic is routed through the tunnel."
+                        refreshServerLocation()
+                    } else {
+                        connectedAt = null
+                        statusMessage = "VPN is not connected."
+                    }
+                }
             }
+            delay(1500)
         }
     }
 
