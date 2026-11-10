@@ -1,6 +1,8 @@
 name: OpenVPN Android ARM64 Proof of Concept
 
 on:
+  push:
+    branches: [ "openvpn-arm64-poc" ]
   workflow_dispatch:
 
 permissions:
