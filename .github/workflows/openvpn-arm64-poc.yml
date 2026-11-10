@@ -33,12 +33,13 @@ jobs:
         run: |
           echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
-          echo "/usr/local/lib/android/sdk/cmdline-tools/16.0/bin" >> "$GITHUB_PATH"
+          test -x /usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager
 
       - name: Install Android NDK and native build tools
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager --install "ndk;27.2.12479018"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses
+          "$SDKMANAGER" --install "ndk;27.2.12479018"
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build clang libclang-dev lz4
 
