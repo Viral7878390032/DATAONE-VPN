@@ -3,6 +3,8 @@ package com.dataone.vpn
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,13 +25,20 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -50,6 +59,33 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun DataOneVpnHome() {
+    val context = LocalContext.current
+    var configReady by remember { mutableStateOf(false) }
+    var configMessage by remember { mutableStateOf("No WireGuard configuration imported") }
+
+    val configPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val result = runCatching {
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Unable to read the selected file.")
+            }
+            result.onSuccess { text ->
+                val valid = text.contains("[Interface]", ignoreCase = true) &&
+                    text.contains("[Peer]", ignoreCase = true)
+                configReady = valid
+                configMessage = if (valid) {
+                    "WireGuard configuration imported and validated"
+                } else {
+                    "Invalid file: expected [Interface] and [Peer] sections"
+                }
+            }.onFailure { error ->
+                configReady = false
+                configMessage = error.message ?: "Could not read configuration"
+            }
+        }
+    }
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Navy
@@ -148,6 +184,34 @@ private fun DataOneVpnHome() {
                     }
                 }
             }
+            Spacer(Modifier.height(18.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Panel.copy(alpha = 0.9f))
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("WireGuard configuration", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(6.dp))
+                    Text(configMessage, color = if (configReady) Color(0xFF7DE0B0) else Muted, fontSize = 12.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = { configPicker.launch(arrayOf("text/*", "application/octet-stream", "*/*")) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Blue, contentColor = Navy)
+                    ) {
+                        Text(if (configReady) "Choose another .conf file" else "Import .conf file", fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Import a configuration from your VPN server provider. Connection controls will be enabled after secure setup.",
+                        color = Muted,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Bolt, contentDescription = null, tint = Blue, modifier = Modifier.size(16.dp))
