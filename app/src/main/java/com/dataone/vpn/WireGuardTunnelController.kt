@@ -5,6 +5,7 @@ import android.net.VpnService
 import com.wireguard.android.backend.GoBackend
 import com.wireguard.android.backend.Tunnel
 import com.wireguard.config.Config
+import java.io.BufferedReader
 import java.io.Closeable
 import java.io.StringReader
 import java.util.concurrent.ExecutorService
@@ -12,9 +13,7 @@ import java.util.concurrent.Executors
 
 /**
  * Owns the embedded WireGuard backend.
- *
- * This class deliberately requires a real, user-supplied WireGuard configuration.
- * It never reports a connection as active before the backend confirms the tunnel is UP.
+ * A real user-supplied WireGuard configuration is required to establish a tunnel.
  */
 class WireGuardTunnelController(context: Context) : Closeable {
 
@@ -28,19 +27,15 @@ class WireGuardTunnelController(context: Context) : Closeable {
 
     private val tunnel = object : Tunnel {
         override fun getName(): String = "DATAONE"
-
         override fun onStateChange(newState: Tunnel.State) {
             state = newState
         }
     }
 
-    /** Returns the Android system VPN consent intent, or null if consent was already granted. */
+    /** Returns the Android VPN consent intent, or null if consent is already granted. */
     fun permissionIntent() = VpnService.prepare(appContext)
 
-    /**
-     * Connects using a complete WireGuard .conf string.
-     * Call only after permissionIntent() returned null or the user approved the system dialog.
-     */
+    /** Call after Android VPN consent has been granted. */
     fun connect(configText: String, onResult: (Result<Unit>) -> Unit) {
         executor.execute {
             val result = runCatching {
@@ -48,12 +43,13 @@ class WireGuardTunnelController(context: Context) : Closeable {
                 check(VpnService.prepare(appContext) == null) {
                     "VPN permission has not been granted."
                 }
-
-                val config = Config.parse(StringReader(configText))
+                val reader = BufferedReader(StringReader(configText))
+                val config = Config.parse(reader)
                 backend.setState(tunnel, Tunnel.State.UP, config)
                 check(backend.getState(tunnel) == Tunnel.State.UP) {
                     "WireGuard did not bring the tunnel up."
                 }
+                Unit
             }
             onResult(result)
         }
@@ -63,6 +59,7 @@ class WireGuardTunnelController(context: Context) : Closeable {
         executor.execute {
             val result = runCatching {
                 backend.setState(tunnel, Tunnel.State.DOWN, null)
+                Unit
             }
             onResult(result)
         }
