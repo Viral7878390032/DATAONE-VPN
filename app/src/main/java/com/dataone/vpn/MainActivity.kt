@@ -1,5 +1,6 @@
 package com.dataone.vpn
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -100,7 +101,7 @@ private fun DataOneVpnHome() {
     val vpnPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == ComponentActivity.RESULT_OK) {
+        if (result.resultCode == Activity.RESULT_OK) {
             connectTunnel()
         } else {
             statusMessage = "VPN permission was not granted"
