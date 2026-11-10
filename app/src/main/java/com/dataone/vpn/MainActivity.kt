@@ -64,6 +64,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val Navy = Color(0xFF07111F)
 private val Panel = Color(0xFF111F32)
@@ -136,9 +138,14 @@ private fun DataOneVpnHome() {
     var elapsedSeconds by remember { mutableStateOf(0L) }
     var serverLocation by remember { mutableStateOf("Available after connecting") }
     var serverNetwork by remember { mutableStateOf("Exit location is estimated from your public IP") }
+    var openVpnEngineStatus by remember { mutableStateOf("Checking native engine…") }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
     LaunchedEffect(Unit) {
+        openVpnEngineStatus = withContext(Dispatchers.IO) {
+            if (OpenVpnNative.available) "OpenVPN native engine loaded" else "OpenVPN engine unavailable on this device"
+        }
+
         runCatching { loadConfigSecurely(context) }.onSuccess { saved ->
             if (!saved.isNullOrBlank()) {
                 configText = saved
@@ -478,6 +485,10 @@ private fun DataOneVpnHome() {
                 Icon(Icons.Default.Bolt, contentDescription = null, tint = Blue, modifier = Modifier.size(16.dp))
                 Text("  Powered by WireGuard technology", color = Muted, fontSize = 11.sp)
             }
+            Spacer(Modifier.height(8.dp))
+            Text("OPENVPN ENGINE CHECK", color = Color(0xFF60758F), fontSize = 10.sp, letterSpacing = 1.5.sp)
+            Spacer(Modifier.height(5.dp))
+            Text(openVpnEngineStatus, color = if (openVpnEngineStatus == "OpenVPN native engine loaded") Green else Muted, fontSize = 11.sp)
             Spacer(Modifier.height(8.dp))
             Text("LIVE VPN DASHBOARD", color = Color(0xFF60758F), fontSize = 10.sp, letterSpacing = 1.5.sp)
         }
