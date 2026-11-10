@@ -6,6 +6,13 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Base64
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.spec.GCMParameterSpec
+import java.security.KeyStore
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -65,6 +72,50 @@ private val Blue = Color(0xFF55A6FF)
 private val Muted = Color(0xFF91A4BC)
 private val Green = Color(0xFF55D6A2)
 
+private const val CONFIG_PREFS = "dataone_vpn_secure_config"
+private const val CONFIG_ALIAS = "dataone_vpn_config_key"
+
+private fun configKey(): java.security.Key {
+    val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    (keyStore.getKey(CONFIG_ALIAS, null) as? java.security.Key)?.let { return it }
+    val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+    generator.init(
+        KeyGenParameterSpec.Builder(
+            CONFIG_ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setRandomizedEncryptionRequired(true)
+            .build()
+    )
+    return generator.generateKey()
+}
+
+private fun saveConfigSecurely(context: android.content.Context, value: String) {
+    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+    cipher.init(Cipher.ENCRYPT_MODE, configKey())
+    val encrypted = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+    context.getSharedPreferences(CONFIG_PREFS, android.content.Context.MODE_PRIVATE)
+        .edit()
+        .putString("ciphertext", Base64.encodeToString(encrypted, Base64.NO_WRAP))
+        .putString("iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+        .apply()
+}
+
+private fun loadConfigSecurely(context: android.content.Context): String? {
+    val prefs = context.getSharedPreferences(CONFIG_PREFS, android.content.Context.MODE_PRIVATE)
+    val ciphertext = prefs.getString("ciphertext", null) ?: return null
+    val iv = prefs.getString("iv", null) ?: return null
+    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+    cipher.init(
+        Cipher.DECRYPT_MODE,
+        configKey(),
+        GCMParameterSpec(128, Base64.decode(iv, Base64.NO_WRAP))
+    )
+    return cipher.doFinal(Base64.decode(ciphertext, Base64.NO_WRAP)).toString(Charsets.UTF_8)
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,6 +138,18 @@ private fun DataOneVpnHome() {
     var serverLocation by remember { mutableStateOf("Available after connecting") }
     var serverNetwork by remember { mutableStateOf("Exit location is estimated from your public IP") }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
+
+    LaunchedEffect(Unit) {
+        runCatching { loadConfigSecurely(context) }.onSuccess { saved ->
+            if (!saved.isNullOrBlank()) {
+                configText = saved
+                configReady = true
+                configMessage = "Saved WireGuard configuration loaded securely"
+            }
+        }.onFailure {
+            configMessage = "Saved configuration could not be opened. Please import it again."
+        }
+    }
 
     DisposableEffect(controller) {
         onDispose { controller.close() }
@@ -184,10 +247,24 @@ private fun DataOneVpnHome() {
             result.onSuccess { text ->
                 val valid = text.contains("[Interface]", ignoreCase = true) &&
                     text.contains("[Peer]", ignoreCase = true)
-                configText = if (valid) text else ""
-                configReady = valid
-                configMessage = if (valid) "WireGuard configuration imported" else "Invalid file: expected [Interface] and [Peer] sections"
-                if (!valid) statusMessage = "Import a valid configuration first"
+                if (valid) {
+                    runCatching { saveConfigSecurely(context, text) }
+                        .onSuccess {
+                            configText = text
+                            configReady = true
+                            configMessage = "Configuration imported and saved securely on this device"
+                        }
+                        .onFailure { error ->
+                            configText = ""
+                            configReady = false
+                            configMessage = error.message ?: "Could not save configuration securely"
+                        }
+                } else {
+                    configText = ""
+                    configReady = false
+                    configMessage = "Invalid file: expected [Interface] and [Peer] sections"
+                    statusMessage = "Import a valid configuration first"
+                }
             }.onFailure { error ->
                 configText = ""
                 configReady = false
