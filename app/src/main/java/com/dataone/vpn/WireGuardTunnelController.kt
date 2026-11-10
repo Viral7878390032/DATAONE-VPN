@@ -12,10 +12,23 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
- * Owns the embedded WireGuard backend.
- * A real user-supplied WireGuard configuration is required to establish a tunnel.
+ * One application-wide controller is important: GoBackend tracks its active
+ * Tunnel object by identity. Creating a new backend for a recreated Activity
+ * can incorrectly make an already-running tunnel appear DOWN.
  */
-class WireGuardTunnelController(context: Context) : Closeable {
+class WireGuardTunnelController private constructor(context: Context) : Closeable {
+
+    companion object {
+        @Volatile
+        private var instance: WireGuardTunnelController? = null
+
+        fun getInstance(context: Context): WireGuardTunnelController =
+            instance ?: synchronized(this) {
+                instance ?: WireGuardTunnelController(context.applicationContext).also {
+                    instance = it
+                }
+            }
+    }
 
     private val appContext = context.applicationContext
     private val backend = GoBackend(appContext)
@@ -32,16 +45,18 @@ class WireGuardTunnelController(context: Context) : Closeable {
         }
     }
 
-    /** Re-read the active tunnel state when the dashboard is reopened. */
+    /** Read the running tunnel name from the same persistent backend instance. */
     fun refreshState(): Tunnel.State {
-        state = backend.getState(tunnel)
+        state = if (backend.runningTunnelNames.contains(tunnel.name)) {
+            Tunnel.State.UP
+        } else {
+            Tunnel.State.DOWN
+        }
         return state
     }
 
-    /** Returns the Android VPN consent intent, or null if consent is already granted. */
     fun permissionIntent() = VpnService.prepare(appContext)
 
-    /** Call after Android VPN consent has been granted. */
     fun connect(configText: String, onResult: (Result<Unit>) -> Unit) {
         executor.execute {
             val result = runCatching {
@@ -49,10 +64,9 @@ class WireGuardTunnelController(context: Context) : Closeable {
                 check(VpnService.prepare(appContext) == null) {
                     "VPN permission has not been granted."
                 }
-                val reader = BufferedReader(StringReader(configText))
-                val config = Config.parse(reader)
+                val config = Config.parse(BufferedReader(StringReader(configText)))
                 backend.setState(tunnel, Tunnel.State.UP, config)
-                check(backend.getState(tunnel) == Tunnel.State.UP) {
+                check(refreshState() == Tunnel.State.UP) {
                     "WireGuard did not bring the tunnel up."
                 }
                 Unit
@@ -65,16 +79,17 @@ class WireGuardTunnelController(context: Context) : Closeable {
         executor.execute {
             val result = runCatching {
                 backend.setState(tunnel, Tunnel.State.DOWN, null)
+                check(refreshState() == Tunnel.State.DOWN) {
+                    "WireGuard is still reporting an active tunnel."
+                }
                 Unit
             }
             onResult(result)
         }
     }
 
+    /** Do not call from Activity/composition teardown; the VPN must survive it. */
     override fun close() {
-        executor.execute {
-            runCatching { backend.setState(tunnel, Tunnel.State.DOWN, null) }
-            executor.shutdown()
-        }
+        // Intentionally keep the application-wide backend and executor alive.
     }
 }
