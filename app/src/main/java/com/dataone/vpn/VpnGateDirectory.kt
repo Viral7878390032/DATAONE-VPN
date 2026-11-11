@@ -92,8 +92,7 @@ object VpnGateDirectory {
             val ip = fields[ipIndex].trim()
             val ping = fields[pingIndex].trim().toIntOrNull() ?: return@mapNotNull null
             val speed = fields[speedIndex].trim().toLongOrNull() ?: return@mapNotNull null
-            if (!ip.matches(Regex("^\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3}$")) ||
-                ping !in 1..800 || speed <= 0 || profile.length < 150) {
+            if (!isValidIpv4(ip) || ping !in 1..800 || speed <= 0 || profile.length < 150) {
                 return@mapNotNull null
             }
 
@@ -125,6 +124,14 @@ object VpnGateDirectory {
         return parsed.groupBy { it.ip }
             .mapNotNull { (_, duplicates) -> duplicates.maxByOrNull { it.score } }
             .sortedWith(compareBy<VpnGateServer> { it.pingMs }.thenByDescending { it.speedBytesPerSecond })
+    }
+
+    private fun isValidIpv4(value: String): Boolean {
+        val parts = value.split(".")
+        return parts.size == 4 && parts.all { part ->
+            part.isNotEmpty() && part.length <= 3 &&
+                part.all(Char::isDigit) && part.toIntOrNull() in 0..255
+        }
     }
 
     /** CSV splitter that preserves commas inside quoted fields. */
