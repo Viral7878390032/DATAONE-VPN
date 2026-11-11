@@ -18,6 +18,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -139,9 +140,22 @@ private fun DataOneVpnHome() {
     var serverLocation by remember { mutableStateOf("Available after connecting") }
     var serverNetwork by remember { mutableStateOf("Exit location is estimated from your public IP") }
     var openVpnEngineStatus by remember { mutableStateOf("Checking native engine…") }
+    var vpnGateServers by remember { mutableStateOf<List<VpnGateServer>>(emptyList()) }
+    var vpnGateLoading by remember { mutableStateOf(false) }
+    var vpnGateMessage by remember { mutableStateOf("Loading free community servers…") }
+    var selectedVpnGateServer by remember { mutableStateOf<VpnGateServer?>(null) }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
     LaunchedEffect(Unit) {
+        vpnGateLoading = true
+        runCatching { withContext(Dispatchers.IO) { VpnGateDirectory.fetchServers() } }
+            .onSuccess { found ->
+                vpnGateServers = found
+                vpnGateMessage = if (found.isEmpty()) "No servers were returned. Try refreshing." else "${found.size} community servers available"
+            }
+            .onFailure { error -> vpnGateMessage = error.message ?: "Could not load the server directory" }
+        vpnGateLoading = false
+
         openVpnEngineStatus = withContext(Dispatchers.IO) {
             if (OpenVpnNative.available) "OpenVPN native engine loaded" else "OpenVPN engine unavailable on this device"
         }
@@ -476,6 +490,89 @@ private fun DataOneVpnHome() {
                         color = Muted,
                         fontSize = 11.sp,
                         lineHeight = 16.sp
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Panel)
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Free community servers", color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(4.dp))
+                            Text(vpnGateMessage, color = Muted, fontSize = 11.sp)
+                        }
+                        Button(
+                            onClick = {
+                                vpnGateLoading = true
+                                vpnGateMessage = "Refreshing server directory…"
+                                Thread {
+                                    val result = runCatching { VpnGateDirectory.fetchServers() }
+                                    mainHandler.post {
+                                        result.onSuccess { found ->
+                                            vpnGateServers = found
+                                            vpnGateMessage = if (found.isEmpty()) "No servers available right now" else "${found.size} community servers available"
+                                        }.onFailure { error ->
+                                            vpnGateMessage = error.message ?: "Directory refresh failed"
+                                        }
+                                        vpnGateLoading = false
+                                    }
+                                }.start()
+                            },
+                            enabled = !vpnGateLoading && !connected && !busy,
+                            colors = ButtonDefaults.buttonColors(containerColor = Blue, contentColor = Navy)
+                        ) {
+                            Text(if (vpnGateLoading) "Loading…" else "Refresh", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    if (vpnGateServers.isEmpty()) {
+                        Text("VPN Gate servers are volunteer-operated and may be offline or slow.", color = Muted, fontSize = 11.sp)
+                    } else {
+                        vpnGateServers.take(8).forEach { server ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedVpnGateServer = server
+                                        val accepted = OpenVpnNative.validateProfile(server.decodedOpenVpnProfile())
+                                        vpnGateMessage = if (accepted) {
+                                            "OpenVPN profile checked by native engine. Tunnel connection is not integrated yet."
+                                        } else {
+                                            "This server profile was rejected by the native engine."
+                                        }
+                                    }
+                                    .padding(vertical = 9.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            "${server.country} (${server.countryCode})",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.sp
+                                        )
+                                        Text(server.ip, color = Muted, fontSize = 10.sp)
+                                    }
+                                    Text("${server.pingMs} ms", color = Green, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                if (selectedVpnGateServer?.ip == server.ip) {
+                                    Text("Selected for inspection • not connected", color = Blue, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "These are public VPN Gate volunteer relays, not DATAONE-owned servers. Their operators may log traffic metadata. Selecting a server does not connect the VPN.",
+                        color = Muted,
+                        fontSize = 10.sp,
+                        lineHeight = 15.sp
                     )
                 }
             }
