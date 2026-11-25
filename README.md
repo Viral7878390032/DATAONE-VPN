@@ -41,3 +41,12 @@ The APK is a debug build, not a Play Store release. It has not been certified th
 - Official WireGuard Android tunnel backend
 - Android Keystore (AES-GCM configuration encryption)
 
+
+## Server setup
+
+A starter Ubuntu WireGuard server script and setup guide are available:
+
+- [Server setup guide](docs/WIREGUARD_SERVER_SETUP.md)
+- [Ubuntu setup script](server/setup-wireguard.sh)
+
+The starter profile tunnels IPv4 only and is not leak-proof or production-ready. Review the limitations in the guide before using it for sensitive traffic. Never commit the generated client configuration or private keys.
