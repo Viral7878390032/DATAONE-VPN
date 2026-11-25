@@ -225,7 +225,7 @@ private fun DataOneVpnHome() {
                 busy = false
                 result.onSuccess {
                     tunnelState = controller.state
-                    statusMessage = if (tunnelState == Tunnel.State.UP) "Your traffic is routed through the VPN tunnel." else "Connection not established"
+                    statusMessage = if (tunnelState == Tunnel.State.UP) "WireGuard tunnel started. Verify the handshake and browsing." else "Connection not established"
                     if (tunnelState == Tunnel.State.UP) {
                         connectedAt = SystemClock.elapsedRealtime()
                         refreshServerLocation()
@@ -336,7 +336,7 @@ private fun DataOneVpnHome() {
                     }
                     Spacer(Modifier.height(18.dp))
                     Text(
-                        if (connected) "You are protected" else "Your privacy, connected.",
+                        if (connected) "WireGuard tunnel active" else "Ready for a private connection",
                         color = Color.White,
                         fontSize = 23.sp,
                         fontWeight = FontWeight.Bold
