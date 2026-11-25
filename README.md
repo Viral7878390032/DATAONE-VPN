@@ -1,30 +1,43 @@
 # DATAONE VPN
 
-A standalone Android VPN client project, developed separately from the DATAONE unified-viewing app.
+A standalone Android VPN client project.
 
-## Current stage
+## Current implementation
 
-**Stage 1 — Android app foundation.** The current screen is an interface preview only. It deliberately does not claim to be connected and does not route device traffic.
+The Android app is a Kotlin / Jetpack Compose client with:
 
-## Planned milestones
+- An actual WireGuard tunnel backend using the official embeddable WireGuard Android tunnel library.
+- Android's VPN permission flow.
+- Import of a WireGuard `.conf` file.
+- AES-GCM encryption of the imported configuration using an Android Keystore key.
+- Connect / disconnect controls driven by the backend tunnel state.
+- A connection timer and public exit-IP location lookup.
 
-1. Build and verify the Android app foundation.
-2. Integrate the official WireGuard Android tunnel library.
-3. Provision and secure a real WireGuard server.
-4. Add configuration handling, Android VPN permission flow, connection state, and leak-conscious error handling.
-5. Test real connectivity before enabling the Connect control.
+The app does **not** include a VPN server. A real tunnel requires a reachable WireGuard server and a valid client configuration. Until one is imported and successfully connected, the app remains disconnected; it does not create an empty TUN interface or pretend to be connected.
 
-A genuine VPN requires a reachable VPN server and valid client configuration. The app will not display a connected state until a real tunnel is established.
+## Free-use approach
 
-## Build
+The app itself has no subscription or payment code. Server access is separate: use a WireGuard server you operate or have permission to use. A free cloud tier may be available from some providers, but eligibility, capacity, region, and billing terms vary. Do not assume a cloud server is permanently free.
 
-GitHub Actions builds a debug APK on every push to `main`. Download it from the workflow run's **Artifacts** section.
+Do not import configuration files from unknown sources. A WireGuard configuration contains a private key; anyone who obtains it may be able to use that VPN identity.
+
+## Build a debug APK
+
+A GitHub Actions workflow builds the debug APK on pushes and pull requests to `main`, and can also be started manually:
+
+1. Open the repository's **Actions** tab.
+2. Select **Android debug APK**.
+3. Open the latest successful run.
+4. Download the `DATAONE-VPN-debug` artifact.
+5. Extract the ZIP to get `app-debug.apk`.
+
+The APK is a debug build, not a Play Store release. It has not been certified through device testing merely because CI compiles it.
 
 ## Technology
 
 - Kotlin
 - Jetpack Compose
 - Android VPN APIs
-- WireGuard (planned integration)
+- Official WireGuard Android tunnel backend
+- Android Keystore (AES-GCM configuration encryption)
 
-Official WireGuard Android embedding guidance: https://www.wireguard.com/embedding/
